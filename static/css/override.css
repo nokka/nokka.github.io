@@ -1,0 +1,38 @@
+html body {
+    background-color: #0d1117;
+    color: #FAF7F0;
+}
+
+.navbar-default {
+    background-color: #161b22 !important;
+}
+
+h1, h2, h3, h4, h5 {
+    color: #FAF7F0;
+}
+
+.navbar.navbar-default {
+    border-color: #f99b15;
+    border-bottom-color: black;;
+}
+
+.content pre {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+}
+
+code.hljs {
+    color: #8b949e;
+    background: none;
+}
+
+code .hljs-type,
+code .hljs-string,
+code .hljs-number,
+code .hljs-selector-id,
+code .hljs-selector-class,
+code .hljs-quote,
+code .hljs-template-tag,
+code .hljs-deletion {
+    color: #a5d6ff;
+}
