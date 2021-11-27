@@ -1,16 +1,20 @@
-baseURL = "http://example.com/"
+baseURL = "https://nokka.github.io"
 languageCode = "en-us"
-title = "Minimal"
+title = "Title"
 theme = "minimal"
 googleAnalytics = ""
 
+content = "derp"
+enableRobotsTXT = false
+
 [params]
-    author = "Calin Tataru"
-    description = "Desc updated"
-    githubUsername = "#"
+    author = "Stefan Konno"
+    description = "Tech ramblings"
+    profilePic = "elmo.jpg"
+    githubUsername = "nokka"
     accent = "red"
-    showBorder = true
-    backgroundColor = "white"
+    showBorder = false
+    backgroundColor = "black"
     font = "Raleway" # should match the name on Google Fonts!
     highlight = true
     highlightStyle = "paraiso-dark"
@@ -28,12 +32,12 @@ googleAnalytics = ""
     weight = 2
 
 [[menu.main]]
-    url = "/post/"
+    url = "/posts/"
     name = "Posts"
     weight = 3
 
 [[menu.main]]
-    url = "/project/"
+    url = "/projects/"
     name = "Projects"
     weight = 4
 
@@ -42,11 +46,11 @@ googleAnalytics = ""
 # The list of available icons can be found at http://fontawesome.io/icons.
 
 [[menu.icon]]
-    url = "https://github.com/username/"
+    url = "https://github.com/nokka/"
     name = "fab fa-github"
     weight = 2
 
 [[menu.icon]]
-    url = "https://www.linkedin.com/in/username/"
+    url = "https://www.linkedin.com/in/stefan-konno-22b83544/"
     name = "fab fa-linkedin"
     weight = 4

@@ -1,18 +1,30 @@
 html body {
-    background-color: #0d1117;
-    color: #FAF7F0;
+    background-color: #161617;
+    color: #E6E5E9;
 }
 
 .navbar-default {
-    background-color: #161b22 !important;
+    background-color: #111112 !important;
+}
+
+h1 {
+    font-size: 15px;
 }
 
 h1, h2, h3, h4, h5 {
-    color: #FAF7F0;
+    color: #E6E5E9;
+}
+
+.item a {
+    color: #ffffff;
+}
+
+.item h5 {
+    color: #AE8294;
 }
 
 .navbar.navbar-default {
-    border-color: #f99b15;
+    border-color: #B37C89;
     border-bottom-color: black;;
 }
 
