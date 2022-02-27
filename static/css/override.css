@@ -1,4 +1,4 @@
-html body {
+/* html body {
     background-color: #161617;
     color: #E6E5E9;
 }
@@ -47,4 +47,28 @@ code .hljs-quote,
 code .hljs-template-tag,
 code .hljs-deletion {
     color: #a5d6ff;
+} */
+
+/* ------------------------------ */
+
+main p {
+    font-size: 18px;
+    line-height: 32px;
+    margin: 2em 0em 0em 0em;
+    
+}
+
+main {
+    max-width: 800px;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+}
+
+main h2 {
+    line-height: 40px;
+    letter-spacing: -0.016em;
+    font-size: 32px;
+    font-weight: 600;
 }

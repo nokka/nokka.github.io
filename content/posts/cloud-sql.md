@@ -13,6 +13,76 @@ draft: false
 4. Go to MYSQL -> Create instance -> MYSQL
 5. Create a user
 
+```go
+package main
+
+func main() {
+	// Context used for mongo operations, to time them out and cancel their context.
+	mgoCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err != nil {
+		log.Println("failed to create context with timeout for mongodb connection", err)
+		os.Exit(0)
+	}
+
+	client, err := mongo.Connect(mgoCtx, clientOptions)
+	if err != nil {
+		log.Println("failed to connect to mongodb", err)
+		os.Exit(0)
+	}
+
+	err = client.Ping(mgoCtx, readpref.Primary())
+	if err != nil {
+		log.Println("failed to ping mongodb", err)
+		os.Exit(0)
+	}
+
+	log.Println("connected to mongodb")
+
+	// Repositories.
+	characterRepository := mgo.NewCharacterRepository(databaseName, client)
+	statisticsRepository := mgo.NewStatisticsRepository(databaseName, client)
+
+	// Business logic services.
+	parser := parsing.NewParser(d2sPath)
+	characterService := character.NewService(parser, characterRepository, cd)
+	statisticsService := statistics.NewService(statisticsRepository)
+
+	// Channel to receive errors on.
+	errorChannel := make(chan error)
+
+	// Credentials for posting statistics map.
+	credentials := map[string]string{
+		statisticsUser: statisticsPassword,
+	}
+	// HTTP server.
+	go func() {
+		httpServer := httpserver.NewServer(
+			httpAddress,
+			characterService,
+			statisticsService,
+			credentials,
+			cors,
+			logging,
+		)
+		errorChannel <- httpServer.Open()
+	}()
+
+	// Capture interupts.
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+		errorChannel <- fmt.Errorf("got signal %s", <-c)
+	}()
+
+	// Listen for errors indefinitely.
+	if err := <-errorChannel; err != nil {
+		os.Exit(1)
+	}
+}
+```
+
 ### Connecting from a GKE cluster
 The Cloud SQL Auth proxy recommended even for private IPs
 
