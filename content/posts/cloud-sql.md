@@ -1,11 +1,9 @@
 ---
 title: "Cloud SQL"
-date: 2021-11-14
+date: "2021-11-14"
 tags: ["cloudsql"]
 draft: false
 ---
-
-## CloudSQL
 
 1. Make sure billing is enabled
 2. Add Cloud SQL admin role

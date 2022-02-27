@@ -3,7 +3,6 @@ languageCode = "en-us"
 title = "Title"
 theme = "minimal"
 googleAnalytics = ""
-
 content = "derp"
 enableRobotsTXT = false
 
@@ -12,10 +11,12 @@ enableRobotsTXT = false
     description = "Tech ramblings"
     profilePic = "elmo.jpg"
     githubUsername = "nokka"
-    accent = "green"
+    copyright = "All opinions expressed are my own and do not reflect those of my employer or anyone else."
+    accent = "black"
     showBorder = false
     backgroundColor = "white"
-    font = "Lora" # should match the name on Google Fonts!
+    heading_font = "Lato"
+    font = "Merriweather" # should match the name on Google Fonts!
     highlight = true
     highlightStyle = "paraiso-dark"
     highlightLanguages = ["go"]

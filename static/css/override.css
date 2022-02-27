@@ -51,9 +51,12 @@ code .hljs-deletion {
 
 /* ------------------------------ */
 
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@700&display=swap');
+
 main p {
-    font-size: 18px;
-    line-height: 32px;
+    font-size: 1.2em;
+    font-weight: 300;
+    line-height: 1.8em;
     margin: 2em 0em 0em 0em;
     
 }
@@ -67,8 +70,14 @@ body {
 }
 
 main h2 {
+    font-family: 'Lato', sans-serif;
     line-height: 40px;
-    letter-spacing: -0.016em;
+    letter-spacing: -0.020em;
     font-size: 32px;
-    font-weight: 600;
+}
+
+.item-tag {
+    color: #1565c0;
+    background: none;
+    box-shadow: none;
 }
