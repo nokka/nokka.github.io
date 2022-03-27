@@ -81,3 +81,7 @@ main h2 {
     background: none;
     box-shadow: none;
 }
+
+.highlight {
+    margin: 25px 0px 25px 0px;
+}
