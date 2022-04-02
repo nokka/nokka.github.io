@@ -1,11 +1,12 @@
 ---
 title: About
-description: What is Hugo?
+description: About
 ---
 
-Hugo is a fast and modern static site generator written in Go, and designed to make website creation fun again.
-Hugo is a general-purpose website framework. Technically speaking, Hugo is a static site generator. Unlike systems that dynamically build a page with each visitor request, Hugo builds pages when you create or update your content. Since websites are viewed far more often than they are edited, Hugo is designed to provide an optimal viewing experience for your website’s end users and an ideal writing experience for website authors.
+Hello I'm Stefan and I'm a software engineer from Stockholm, Sweden. I write software mainly in
+Go for micro services / API development and infrastructure. I am a Diablo II enthusiast and have
+written several tools for the Diablo II development community in my spare time. I consider myself
+a backender but somehow I always end up doing frontend as well, mostly because humans require 
+graphical interfaces these days to be happy.
 
-Websites built with Hugo are extremely fast and secure. Hugo sites can be hosted anywhere, including Netlify, Heroku, GoDaddy, DreamHost, GitHub Pages, GitLab Pages, Surge, Aerobatic, Firebase, Google Cloud Storage, Amazon S3, Rackspace, Azure, and CloudFront and work well with CDNs. Hugo sites run without the need for a database or dependencies on expensive runtimes like Ruby, Python, or PHP.
-
-We think of Hugo as the ideal website creation tool with nearly instant build times, able to rebuild whenever a change is made.
+Companies have trusted me to write their software in 

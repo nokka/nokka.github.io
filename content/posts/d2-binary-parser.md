@@ -13,10 +13,12 @@ games such as an easy way to see player rankings or the ability to check charact
 I started to dig into the architecture of Diablo II and how they were saving the character data I was 
 interested in. It turns out there were some people back in the day (early 2000's) who spent a lot of time
 reverse engineering the game, but since then a lot of that work had been lost. To be fair it's been almost
-20 years since the work was done, but I did find some information on how to proceed and piece a lot of data
-together and spent a lot of time testing, writing tools to try different bit lengths and reverse engineer data. 
-This write up will focus on how to parse binary data using Go, I might do an attempt to write about
-the research process down the line.
+20 years since the work was done, but I did find some information on how to proceed and had to piece a lot of data
+together and spent a lot of time testing and writing tools to try different binary layouts and reverse engineer data. 
+
+In this article I will try and focus on how to parse binary data streams using Go and show some of the thought process
+behind how the [d2s](https://github.com/nokka/d2s) library was created to support the Slashdiablo services.
+I will go into some detail about the Diablo II binary format but try to keep the more complex sections simple.
 
 It turns out Diablo II stores all character data in tightly packed binary files called `.d2s` files.
 This binary layout was designed when every bit mattered so they didn't waste a single bit packing data.
@@ -24,7 +26,7 @@ This binary layout was designed when every bit mattered so they didn't waste a s
 ![D2s binary layout](/images/binary.png)
 
 The image above shows the layout of the character binary byte after byte. As it turns out the file
-has seven sections delimited by `2 byte` header string, always containing a 2 character string.
+has seven sections delimited by `2 byte` header strings, always containing two letters, depending on which header.
 
 Representing this character as a Go struct without the header strings would look like this.
 
@@ -48,7 +50,7 @@ the other sections afterwards. This means I need to keep a pointer to which byte
 reading at. Luckily Go has this really nifty package called `bufio`. This package exports a
 buffered reader that wraps the `io.Reader` interface. A buffered reader basically means we're able to read
 parts of an input stream and then continue from that point afterwards, since the `bufio.Reader` keeps a pointer to the
-last byte read it's a perfect fit.
+current position in the byte stream it's a perfect fit.
 
 
 ```go
@@ -64,7 +66,7 @@ bfr := bufio.NewReader(file)
 // Create a byte slice of exactly 765 bytes that can hold the header data.
 buf := make([]byte, 765)
 
-// Read the full length of buf length into the buf byte slice.
+// Read 765 bytes from the file into the buf byte slice.
 _, err = io.ReadFull(bfr, buf)
 if err != nil {
     return err
@@ -103,11 +105,15 @@ type Header struct {
 Now that we have a struct to read the buffer into, we can use the `binary.Read` func
 from the Go standard library. It takes three arguments.
 
-- The first one is an `io.Reader` that we pass our `buf` to
+```go
+func Read(r io.Reader, order ByteOrder, data any) error
+```
+
+- The first one is an `io.Reader` that we pass our `buf` to.
 - The second argument is the [byte order](https://en.wikipedia.org/wiki/Endianness),
 which determines the order the bytes are sequenced in, also called Endianness and d2s files are in 
 the order Little Endian.
-- The last argument is the struct we want to read the data into (hence the pointer), and this our header struct.
+- The last argument is the struct we want to read the data into (hence the pointer), and this is the header struct.
 
 ```go
 // Create a new character.
@@ -147,7 +153,7 @@ NokkaSorc
 The attributes section while having a fixed length do introduce some interesting complexity.
 The attributes layout consists of a list of attributes such as strength, dexterity, health or mana.
 Each attribute starts with a `9 bit` ID that will be immediately followed by an `n` bit value.
-The list is finally terminated by a `9 bit` `0x1ff` value. Every attribute value has a different bit length
+The list is finally terminated by a `9 bit` `0x1ff` ID. Every attribute value has a different bit length
 and the mapping can be found [here](https://github.com/nokka/d2s/blob/master/attributes.go#L44-L61).
 
 This is interesting because the data is no longer byte aligned. Simply put this means data can span several 
@@ -332,62 +338,62 @@ for i, allocatedPoints := range skillHeaderData.List {
 ## Item list
 This is where it gets seriously complicated and I spent probably around 90% of the time on this part.
 If you are familiar with Diablo II you know there's a wide array of different type of items, rarities,
-prefixes, suffixes and magical properties. Depending on the item rarity it can have different type of
-properties such as unique items having set number of magical attributes, or rare and crafted items having two rare
-names put together randomly that determines the magical attributes they will obtain, for example `Corruption Grip Ring`.
-
-Each item also has an item level and this item level determines which magical attributes are eligible, this means certain
-magical attributes can only occur above certain item levels.
-
-Instead of trying to link the thousands of lines of code that perform the complex task of parsing these items I will try and explain the differences between item types and give an overview of how the parsing works on the binary level, and then link to the full implementation of the item parser in the library.
-
-The item list as all the other sections start with a `2 byte` header containing the string `JM` but the item list
-also have an uint16 (2 byte) after the header containing information about the number of items to read in the list.
-This is important because we don't know how long this section is until we have read it. Each item has a bit length of `n` depending on rarity and item type. For example not all items have durability or defense.
+prefixes, suffixes and magical properties. Gems and Runes can even be placed inside of other items
+as socketed items. Depending on the item rarity an item can have different type of
+properties and number of sockets, for example unique items having a set number of magical properties, or rare and crafted items having two rare
+names put together randomly that determines the magical properties they will obtain, for example `Corruption Grip Ring`.
 
 
-All items have a quality property that determines the rarity of the item, the higher the value the more complex the item is.
+![Corruption Grip Ring](/images/corruption_grip.png)
 
-```go
-// Rarity IDs.
-const (
-	lowQuality        = 1
-	normal            = 2
-	highQuality       = 3
-	magicallyEnhanced = 4
-	partOfSet         = 5
-	rare              = 6
-	unique            = 7
-	crafted           = 8
-)
-```
+Each item also has an item level and this item level determines which magical properties are eligible, this means certain
+magical properties can only occur above certain item levels.
+
+Instead of trying to link the thousands of lines of code that perform the complex task of parsing these items I will try and explain the differences between item types and give an overview of how the parsing works on the binary level, and then link to the full implementation of the item parser in the go library.
+
+The item list reads just like every other section and start with a `2 byte` header but the item list
+also have an `uint16` (2 byte) after the header containing information about the number of items to read in the list.
+This is important because we don't know how long this section is until we have read it. Each item has a bit length of `n` depending on rarity, number of magical properties and item type. For example not all items have durability, defense or weapon damage so their bit length varies.
 
 ### Simple items
-Simple items are always `111 bit` long they contain the most basic data that all items have, like if it's ethereal, how
+Simple items are always `111 bit` long, they contain the most basic data structure that all items have. For example if it's ethereal, how
 many number of sockets it has, the name of the item and its position in the inventory or slot it is equipped in. All items have this information so consider it the "base" of each item.
 
-### Magical items
-A magical item has both an affix and a suffix, for example `Russet Amulet of Luck`, where `Russet` is the prefix and `Luck` is the suffix. These affixes and suffixes can roll on items based on their item level and have a range as well.
+All items except for simple items have a list of magical properties assigned to them. This magical property list reads similar to the attributes section with a few exceptions. Since an item can be `n` bits long, it can stop in the middle of a byte, this means that the reader has to be aligned at the next byte boundary to read the next item. Below is a psuedo code example of how the layout of the item list looks.
 
-```
-INSERT IMAGE
-```
-
-All items above rarity ID > 4 have this list of magical properties assigned to them. This list is similar to the attributes section where the magical list looks like this. 
-
-```
+```bash
 for {
-	9 bit id
-	n bits of magical properties
-	0x1ff terminator
-	When we hit the terminator 0x1ff the next item begins.
+	read 111 bits (simple item structure)
+
+	if !item.SimpleItem {
+		for {
+			9 bit id
+
+			if id == 0x1ff {
+				break
+			}
+
+			loop through n bit sections of magical properties
+		}
+	}
+
+	if item.Location == socketed {
+		add the socketed item bonus to the magical list of the item
+	}
+
+	if item.NrOfItemsInSockets > 0 {
+		add number of socketed items to list count
+	}
+	
+	byte align the reader at next byte boundry
 }
 ```
 
 The full magical list reader can be found [here](https://github.com/nokka/d2s/blob/426ae713940b7474a5f7872f16dddb02ced8a241/d2s.go#L991-L1034).
 
-The tricky part about reading these magical properties is that can be quite different, they are `n` bits long but these
-bits an be divided into several sections depending on the property. Representing them in Go I use a `[]uint` to divide to help with understanding how long each section will be.
+The tricky part about reading these magical properties is that they can be quite different, they are `n` bits long but these
+bits are divided into several sections depending on the property. Representing them in Go a slice of integers is used to store the number 
+of bits to help with understanding how long each section will be.
 
 ```go
 type MagicalProperty struct {
@@ -397,7 +403,8 @@ type MagicalProperty struct {
 }
 ```
 
-A simple magical property like strength with ID `0` that only has one section of bits looks like this.
+A simple magical property like strength with ID `0` that only has one section of bits looks like the example below
+and in game it would look like  `+30 to Strength`.
 
 ```go
 var magicalProperties = map[uint64]MagicalProperty{
@@ -406,8 +413,13 @@ var magicalProperties = map[uint64]MagicalProperty{
 }
 ```
 
-A more complicated magical property with ID `83` that has several sections of data is for example the + Skills property.
-It has two sections each `3` bits each.
+![Strength layout](/images/strength.png)
+
+A more complicated magical property with ID `83` containing several sections of data is the +Skills property.
+It has two sections with `3` bits each, one for the class it gives the skills to, but also the number of skills given.
+The order is reversed which is quite confusing with the number of skill points given being the second index in the slice, but in game it would look 
+like `+2 to Sorceress Skill Levels`.
+
 ```go
 var magicalProperties = map[uint64]MagicalProperty{
 	...
@@ -416,41 +428,35 @@ var magicalProperties = map[uint64]MagicalProperty{
 }
 ```
 
-### Rare & crafted items
-Rare items 
+![Plus skills layout](/images/plus_skills.png)
 
+When a magical property is read, the ID is read first and then that ID is used to look up the property structure in the 
+ `magicalProperties` map. You can find the whole thing [here](https://github.com/nokka/d2s/blob/master/item.go#L1219).
 
+ ## Mercenary and Iron Golem
+ After the character item list, there are 2 more optional item lists that follow the exact same layout.
+ The first one is the Mercenary that can equip a weapon, helm and armor and the second one is the Iron 
+ Golem that only exists for Necromancers who are summoned through sacrificing a weapon. The Iron Golem
+ inherits the magical properties of the weapon.
 
----
+## Conclusion
+Using Go to read input streams is incredibly effective with the simple `io.Reader` interface, and the 
+bufio package provides the buffered reader that makes it perfect for reading input streams bit by bit.
+Being able to define structs with certain byte lengths in Go and simply read data into the structs through the input
+stream simplified this project a lot and makes the code readable.
 
-This is by far the most tricky part to read. The items section starts of with a 4 byte header, containing the value JM, and a uint16 value which is the item count your character currently has. Equipped, inventory, stash, cube and belt all included.
+Go always felt like an enabler when writing the code, the intentions of the code are made clear and concise by
+the explicit way Go code is defined. Everything you could possibly need can be found in the Go standard library
+and are abstracted behind simple interfaces. Not a single third party library was used writing the binary parser,
+it relies solely on the standard library.
 
-The byte length of the section is unknown before reading it in it's entirety, because the bit length of each item varies depending on its quality, number of sockets and magical attributes it possess.
+I started this project in 2016 as a way to learn Go while simultaneously explore the game that I have loved
+for so many years. Today several people have contributed to the project on Github which I'm incredibly grateful for.
+I'm still writing most of my code in Go today in 2022 and I have Diablo II to thank for that.
 
-Each item follows a certain pattern though, which is:
+This library powers a lot of the tools used at the Slashdiablo private server today, but the most important
+one is the Armory where you can view all characters online to see what your friends are up to.
 
-Simple items
-Each item starts of with 111 bits of simple data, which all items contain. This is information like item type, if it's socketed, position id like equipped or stash and so on.
-
-Each item also has a boolean called SimpleItem which is 1 bit long, if this is set to 1, the item contains no more bits, and the next item starts.
-
-Advanced items
-If the item is not a simple items, this means it will have tons of data following the initial 111 bits. A few examples of this is the rarity level, magical suffix, magical affix, if it's a runeword, personalized, part of a set, class specific and so on.
-
-Last but not least if the item has will have lists of magical properties depending on if it's a runeword, magical, rare, crafted, unique part of set and so on.
-
-These lists are similar to the attributes section where we will read:
-
-9 bit id
-n bits of magical properties
-0x1ff terminator
-When we hit the terminator 0x1ff the next item begins.
-
-Magical properties
-A magical property is a unique property that can occur on an item, each property has a different bit length, and the map is huge.
-
-Example
-This is the magical property with id 83 which contains 2 bit fields each 3 bits long.
-
-83: {Bits: []uint{3, 3}, Name: "+{1} to {0} Skill Levels"},
-All magical properties are mapped in the item.go file.
+## Links
+- [d2s go binary parser](https://github.com/nokka/d2s)
+- [Slashdiablo armory](http://armory.slashdiablo.net/character/nokka#equipped)

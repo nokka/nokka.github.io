@@ -61,12 +61,22 @@ main p {
     
 }
 
+.content a {
+    text-decoration: underline;
+}
+
 main {
     max-width: 800px;
 }
 
 body {
     -webkit-font-smoothing: antialiased;
+}
+
+.content img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 main h2 {
@@ -84,4 +94,13 @@ main h2 {
 
 .highlight {
     margin: 25px 0px 25px 0px;
+}
+
+.content ul {
+    margin: 15px 0px 15px 0px;
+    padding: 5px;
+}
+li {
+    padding: 10px 0px 10px 0px;
+    font-size: 1.2em;
 }
