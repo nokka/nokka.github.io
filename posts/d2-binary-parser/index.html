@@ -1,0 +1,328 @@
+<!doctype html><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Writing a Diablo II binary parser using Go</title><style>html body{font-family:merriweather,sans-serif;background-color:#fff}:root{--accent:black;--border-width:0}</style><link rel=stylesheet href=https://nokka.github.io/css/main.css><link rel=stylesheet href=https://nokka.github.io/css/override.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Merriweather"><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/paraiso-dark.min.css><link rel=stylesheet href=https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css integrity="sha512-+4zCK9k+qNFUR5X+cKL9EIR+ZOhtIloNl9GIKS57V1MyNsYpYcUrUeQc9vNfzsWfV28IaLL3i96P9sdNyeRssA==" crossorigin=anonymous><script src=https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js></script>
+<script src=https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/languages/go.min.js></script>
+<script>hljs.initHighlightingOnLoad()</script><script src=https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js></script>
+<script src=https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js integrity=sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa crossorigin=anonymous></script>
+<script>$(document).on("click",function(){$(".collapse").collapse("hide")})</script><meta name=generator content="Hugo 0.96.0"><script type=text/javascript async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script></head><body><nav class="navbar navbar-default navbar-fixed-top"><div class=container><div class=navbar-header><a class="navbar-brand visible-xs" href=#>Writing a Diablo II binary parser using Go</a>
+<button class=navbar-toggle data-target=.navbar-collapse data-toggle=collapse>
+<span class=icon-bar></span>
+<span class=icon-bar></span>
+<span class=icon-bar></span></button></div><div class="collapse navbar-collapse"><ul class="nav navbar-nav"><li><a href=/>Home</a></li><li><a href=/about/>About</a></li><li><a href=/posts/>Posts</a></li><li><a href=/projects/>Projects</a></li></ul><ul class="nav navbar-nav navbar-right"><li class=navbar-icon><a href=https://github.com/nokka/><i class="fab fa-github"></i></a></li><li class=navbar-icon><a href=https://www.linkedin.com/in/stefan-konno-22b83544/><i class="fab fa-linkedin"></i></a></li></ul></div></div></nav><main><div><h2>Writing a Diablo II binary parser using Go</h2><h5></h5><a href=https://nokka.github.iotags/diablo-ii><kbd class=item-tag>diablo-ii</kbd></a>
+<a href=https://nokka.github.iotags/go><kbd class=item-tag>go</kbd></a></div><div align=start class=content><p>In 2016 I joined a private Diablo II server called Slashdiablo. It&rsquo;s run by a few Diablo enthusiasts and
+alot of code and administration tools had been written to keep the place running. As I started playing and engaging
+with the community on Discord I quickly noticed user interfacing services I was missing from modern
+games such as an easy way to see player rankings or the ability to check character builds online.</p><p>I started to dig into the architecture of Diablo II and how they were saving the character data I was
+interested in. It turns out there were some people back in the day (early 2000&rsquo;s) who spent a lot of time
+reverse engineering the game, but since then a lot of that work had been lost. To be fair it&rsquo;s been almost
+20 years since the work was done, but I did find some information on how to proceed and had to piece a lot of data
+together and spent a lot of time testing and writing tools to try different binary layouts and reverse engineer data.</p><p>In this article I will try and focus on how to parse binary data streams using Go and show some of the thought process
+behind how the <a href=https://github.com/nokka/d2s>d2s</a> library was created to support the Slashdiablo services.
+I will go into some detail about the Diablo II binary format but try to keep the more complex sections simple.</p><p>It turns out Diablo II stores all character data in tightly packed binary files called <code>.d2s</code> files.
+This binary layout was designed when every bit mattered so they didn&rsquo;t waste a single bit packing data.</p><p><img src=/images/binary.png alt="D2s binary layout"></p><p>The image above shows the layout of the character binary byte after byte. As it turns out the file
+has seven sections delimited by <code>2 byte</code> header strings, always containing two letters, depending on which header.</p><p>Representing this character as a Go struct without the header strings would look like this.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Character</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Header</span>      <span style=color:#a6e22e>Header</span>     
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Attributes</span>  <span style=color:#a6e22e>Attributes</span> 
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Skills</span>      []<span style=color:#a6e22e>Skill</span>    
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Items</span>       []<span style=color:#a6e22e>Item</span>     
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>CorpseItems</span> []<span style=color:#a6e22e>Item</span>     
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>MercItems</span>   []<span style=color:#a6e22e>Item</span>     
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>GolemItem</span>   <span style=color:#f92672>*</span><span style=color:#a6e22e>Item</span> <span style=color:#75715e>// Optional item, only for Necromancers.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>}
+</span></span></code></pre></div><p>The first three sections of the binary has a fixed byte length, this was important because at this point I had no idea
+what I was doing and having a fixed length reduced the complexity.</p><p>So I decided to read the first <code>765 byte</code> header section, but I also knew I had to keep reading
+the other sections afterwards. This means I need to keep a pointer to which byte in the <code>.d2s</code> file I&rsquo;m currently
+reading at. Luckily Go has this really nifty package called <code>bufio</code>. This package exports a
+buffered reader that wraps the <code>io.Reader</code> interface. A buffered reader basically means we&rsquo;re able to read
+parts of an input stream and then continue from that point afterwards, since the <code>bufio.Reader</code> keeps a pointer to the
+current position in the byte stream it&rsquo;s a perfect fit.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Read the character binary from disk. io.File implements io.Reader.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>file</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>os</span>.<span style=color:#a6e22e>Open</span>(<span style=color:#e6db74>&#34;/Users/stekon/go/src/github.com/nokka/d2s-article/nokkasorc&#34;</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Create a buffered reader using the file content.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>bfr</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>bufio</span>.<span style=color:#a6e22e>NewReader</span>(<span style=color:#a6e22e>file</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Create a byte slice of exactly 765 bytes that can hold the header data.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#ae81ff>765</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Read 765 bytes from the file into the buf byte slice.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>bfr</span>, <span style=color:#a6e22e>buf</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>buf</span>)
+</span></span></code></pre></div><p>When we print the content of the <code>buf</code> byte slice as a string, we can see that it contains just a bunch
+of binary gibberish, but there&rsquo;s also the text <code>Woo!</code> from which we can conclude that the Diablo II
+developers had a sense of humor.</p><p><img src=/images/buf_string.png alt="header binary string"></p><p>This binary string is no good use for us as is, but from the previously mentioned research, I knew the data
+available from the header and their byte lengths. This means that we can use a <code>struct</code> in Go with the correct
+byte lengths to slot the bytes into place. Below is a struct with the first ten data points in the header.
+The rest is omitted since the header is really long, but you can find the full struct <a href=https://github.com/nokka/d2s/blob/master/character.go#L90>here</a>.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Small sample of the first fields of the header.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Header</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Identifier</span>  <span style=color:#66d9ef>uint32</span>    <span style=color:#75715e>// 4 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Version</span>     <span style=color:#66d9ef>uint32</span>    <span style=color:#75715e>// 4 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>FileSize</span>    <span style=color:#66d9ef>uint32</span>    <span style=color:#75715e>// 4 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>CheckSum</span>    <span style=color:#66d9ef>uint32</span>    <span style=color:#75715e>// 4 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>ActiveArms</span>  <span style=color:#66d9ef>uint32</span>    <span style=color:#75715e>// 4 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Name</span>        [<span style=color:#ae81ff>16</span>]<span style=color:#66d9ef>byte</span>  <span style=color:#75715e>// 16 bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Status</span>      <span style=color:#66d9ef>byte</span>      <span style=color:#75715e>// 1 byte
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Progression</span> <span style=color:#66d9ef>byte</span>      <span style=color:#75715e>// 1 byte
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_</span>           [<span style=color:#ae81ff>2</span>]<span style=color:#66d9ef>byte</span>   <span style=color:#75715e>// 2 byte, Unknown field
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Class</span>       <span style=color:#66d9ef>byte</span>      <span style=color:#75715e>// 1 byte
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Omitted</span>     [<span style=color:#ae81ff>724</span>]<span style=color:#66d9ef>byte</span> <span style=color:#75715e>// 724 omitted bytes
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>}
+</span></span></code></pre></div><p>Now that we have a struct to read the buffer into, we can use the <code>binary.Read</code> func
+from the Go standard library. It takes three arguments.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>r</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>Reader</span>, <span style=color:#a6e22e>order</span> <span style=color:#a6e22e>ByteOrder</span>, <span style=color:#a6e22e>data</span> <span style=color:#a6e22e>any</span>) <span style=color:#66d9ef>error</span>
+</span></span></code></pre></div><ul><li>The first one is an <code>io.Reader</code> that we pass our <code>buf</code> to.</li><li>The second argument is the <a href=https://en.wikipedia.org/wiki/Endianness>byte order</a>,
+which determines the order the bytes are sequenced in, also called Endianness and d2s files are in
+the order Little Endian.</li><li>The last argument is the struct we want to read the data into (hence the pointer), and this is the header struct.</li></ul><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Create a new character.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>character</span> <span style=color:#a6e22e>Character</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Read the content of the buffer into the header data struct.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>binary</span>.<span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span>(<span style=color:#a6e22e>buf</span>), <span style=color:#a6e22e>binary</span>.<span style=color:#a6e22e>LittleEndian</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>.<span style=color:#a6e22e>Identifier</span>)
+</span></span><span style=display:flex><span><span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>.<span style=color:#a6e22e>CheckSum</span>)
+</span></span><span style=display:flex><span><span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>strings</span>.<span style=color:#a6e22e>Trim</span>(string(<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>.<span style=color:#a6e22e>Name</span>[:]), <span style=color:#e6db74>&#34;\x00&#34;</span>))
+</span></span></code></pre></div><p>Ok so now that we have our header data, lets confirm that we have some useful stuff in there,
+instead of this binary gibberish. Let&rsquo;s look at the name because it&rsquo;s a bit tricky. It&rsquo;s a <code>[16]byte</code> to fit
+all potential names allowed in game. Our character name is a bit shorter, which means there&rsquo;s a few
+empty bytes at the end.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span>[<span style=color:#ae81ff>78</span> <span style=color:#ae81ff>111</span> <span style=color:#ae81ff>107</span> <span style=color:#ae81ff>107</span> <span style=color:#ae81ff>97</span> <span style=color:#ae81ff>83</span> <span style=color:#ae81ff>111</span> <span style=color:#ae81ff>114</span> <span style=color:#ae81ff>99</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span> <span style=color:#ae81ff>0</span>]
+</span></span></code></pre></div><p>To get rid of these we can simply trim all the trailing empty characters <code>\x00</code>.
+Running the program right now will output the identifier, the checksum and the character name.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>$ go run main.go
+</span></span><span style=display:flex><span><span style=color:#ae81ff>1437226410</span>
+</span></span><span style=display:flex><span><span style=color:#ae81ff>3173499472</span>
+</span></span><span style=display:flex><span>NokkaSorc
+</span></span></code></pre></div><h2 id=attributes>Attributes</h2><p>The attributes section while having a fixed length do introduce some interesting complexity.
+The attributes layout consists of a list of attributes such as strength, dexterity, health or mana.
+Each attribute starts with a <code>9 bit</code> ID that will be immediately followed by an <code>n</code> bit value.
+The list is finally terminated by a <code>9 bit</code> <code>0x1ff</code> ID. Every attribute value has a different bit length
+and the mapping can be found <a href=https://github.com/nokka/d2s/blob/master/attributes.go#L44-L61>here</a>.</p><p>This is interesting because the data is no longer byte aligned. Simply put this means data can span several
+bytes or stop in the middle of a byte. To read <code>n</code> bits at a time we need to introduce a bit reader. There are
+several options for this in Go, most of them read bits in a Big Endian order but Diablo II stores the data
+in Little Endian. This means I had to rely on my own implementation of a bit reader which you can find
+<a href=https://github.com/nokka/d2s/blob/master/bitreader.go>here</a>.</p><p>After the attribute ID has been determined we can switch on the IDs and slot the data into the correct place
+on the Attributes struct. Some values are normalized and divided by 256 before they are stored in the struct.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Create a bit reader from the same buffered reader to read the stats.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>br</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>bitReader</span>{<span style=color:#a6e22e>r</span>: <span style=color:#a6e22e>bfr</span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Read the 2 header bytes and make sure we&#39;re correctly aligned.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>g</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>br</span>.<span style=color:#a6e22e>ReadByte</span>()
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>f</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>br</span>.<span style=color:#a6e22e>ReadByte</span>()
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> string(<span style=color:#a6e22e>g</span>) <span style=color:#f92672>!=</span> <span style=color:#e6db74>&#34;g&#34;</span> <span style=color:#f92672>||</span> string(<span style=color:#a6e22e>f</span>) <span style=color:#f92672>!=</span> <span style=color:#e6db74>&#34;f&#34;</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>errors</span>.<span style=color:#a6e22e>New</span>(<span style=color:#e6db74>&#34;failed to find attributes header gf&#34;</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>for</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>id</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>br</span>.<span style=color:#a6e22e>ReadBits</span>(<span style=color:#ae81ff>9</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// If all 9 bits are set, we&#39;ve hit the end of the attributes section
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>//  at 0x1ff and exit the loop.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>id</span> <span style=color:#f92672>==</span> <span style=color:#ae81ff>0x1ff</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>break</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// The attribute value bit length, so we&#39;ll know how many bits to read next.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>length</span>, <span style=color:#a6e22e>ok</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>attributeBitMap</span>[<span style=color:#a6e22e>id</span>]
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>ok</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Errorf</span>(<span style=color:#e6db74>&#34;unknown attribute id: %d&#34;</span>, <span style=color:#a6e22e>id</span>)
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// The attribute value.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>attr</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>br</span>.<span style=color:#a6e22e>ReadBits</span>(<span style=color:#a6e22e>length</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>switch</span> <span style=color:#a6e22e>id</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>strength</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Strength</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>energy</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Energy</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>dexterity</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Dexterity</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>vitality</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Vitality</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>unusedStats</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>UnusedStats</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>unusedSkills</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>UnusedSkillPoints</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>currentHP</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>CurrentHP</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>maxHP</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>MaxHP</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>currentMana</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>CurrentMana</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>maxMana</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>MaxMana</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>currentStamina</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>CurrentStamina</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>maxStamina</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>MaxStamina</span> = <span style=color:#a6e22e>attr</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>256</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>level</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Level</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>experience</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Experience</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>gold</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>Gold</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>stashedGold</span>:
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Attributes</span>.<span style=color:#a6e22e>StashedGold</span> = <span style=color:#a6e22e>attr</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h2 id=skills>Skills</h2><p>As we&rsquo;ve seen so far each section starts with a <code>2 byte</code> header, it&rsquo;s also a good way for us to be sure
+that we have read the correct amount of bits on the attributes section and this is indeed the start of the
+skills section. After the <code>2 byte</code> header there&rsquo;s a fixed length of <code>[30]byte</code> that contains allocated skill points.
+We can read them the exact same way we did the header data, since the bufio reader is queued at the correct
+byte already we can simply read the 32 bytes into a struct.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Define a struct that can hold all skill data.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>skillData</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Header</span> [<span style=color:#ae81ff>2</span>]<span style=color:#66d9ef>byte</span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>List</span>   [<span style=color:#ae81ff>30</span>]<span style=color:#66d9ef>byte</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Make a buffer that can hold 32 bytes, which can hold the entire skillset.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>buf</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#ae81ff>32</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>ReadFull</span>(<span style=color:#a6e22e>bfr</span>, <span style=color:#a6e22e>buf</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#a6e22e>skillHeaderData</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>skillData</span>{}
+</span></span><span style=display:flex><span><span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>binary</span>.<span style=color:#a6e22e>Read</span>(<span style=color:#a6e22e>bytes</span>.<span style=color:#a6e22e>NewBuffer</span>(<span style=color:#a6e22e>buf</span>), <span style=color:#a6e22e>binary</span>.<span style=color:#a6e22e>LittleEndian</span>, <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>skillHeaderData</span>)
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Now begins an interesting part of how the skills in Diablo II are layed out.
+Basically all 357 skills used by players, monsters and bosses are in a list.
+Each unique class or monster has an offset associated with them, and this offset
+is used to read the skills of the particular actor. Each playable class has
+exactly 30 skills available to them and the skill list is <code>30 byte</code> long. Each
+byte contains an integer with the number of allocated points in that specific skill.
+As long as we know the offset for the class of the binary we are reading and
+know the class ID (available in header), we can simply iterate the list of integers
+and slot them into the correct skill ID starting at the offset and iterating 30 times.</p><p>The skill map is omitted in the example but the full list can be found <a href=https://github.com/nokka/d2s/blob/master/skills.go#L20-L378>here</a>.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Skill represents an available character skill in Diablo II.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Skill</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>ID</span>     <span style=color:#66d9ef>int</span>    
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Points</span> <span style=color:#66d9ef>int</span>    
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Name</span>   <span style=color:#66d9ef>string</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Skill offsets for each class ID. For example if the character
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// is a Paladin, start reading skills at index 96.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>skillOffsetMap</span> = <span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>uint</span>]<span style=color:#66d9ef>int</span>{
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Amazon</span>:      <span style=color:#ae81ff>6</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Sorceress</span>:   <span style=color:#ae81ff>36</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Necromancer</span>: <span style=color:#ae81ff>66</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Paladin</span>:     <span style=color:#ae81ff>96</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Barbarian</span>:   <span style=color:#ae81ff>126</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Druid</span>:       <span style=color:#ae81ff>221</span>,
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Assassin</span>:    <span style=color:#ae81ff>251</span>,
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> string(<span style=color:#a6e22e>skillHeaderData</span>.<span style=color:#a6e22e>Header</span>[:]) <span style=color:#f92672>!=</span> <span style=color:#e6db74>&#34;if&#34;</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Errorf</span>(<span style=color:#e6db74>&#34;failed to find skill header&#34;</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Find the skill offset for the character class using the offset map.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>skillOffset</span>, <span style=color:#a6e22e>ok</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>skillOffsetMap</span>[uint(<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>.<span style=color:#a6e22e>Class</span>)]
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>ok</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Errorf</span>(<span style=color:#e6db74>&#34;unknown skill offset for class %d&#34;</span>, <span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Header</span>.<span style=color:#a6e22e>Class</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Loop through the list of allocated points and slot the skills into place,
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// since they are in order we can simply use iterator + the offset of the skill map.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span>, <span style=color:#a6e22e>allocatedPoints</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>skillHeaderData</span>.<span style=color:#a6e22e>List</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>id</span> <span style=color:#f92672>:=</span> (<span style=color:#a6e22e>i</span> <span style=color:#f92672>+</span> <span style=color:#a6e22e>skillOffset</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>skillName</span>, <span style=color:#a6e22e>ok</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>skillMap</span>[<span style=color:#a6e22e>id</span>]
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>ok</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Errorf</span>(<span style=color:#e6db74>&#34;unknown skill id %d&#34;</span>, <span style=color:#a6e22e>id</span>)
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>s</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>Skill</span>{
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>ID</span>:     <span style=color:#a6e22e>id</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Points</span>: int(<span style=color:#a6e22e>allocatedPoints</span>),
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Name</span>:   <span style=color:#a6e22e>skillName</span>,
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Skills</span> = append(<span style=color:#a6e22e>character</span>.<span style=color:#a6e22e>Skills</span>, <span style=color:#a6e22e>s</span>)
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h2 id=item-list>Item list</h2><p>This is where it gets seriously complicated and I spent probably around 90% of the time on this part.
+If you are familiar with Diablo II you know there&rsquo;s a wide array of different type of items, rarities,
+prefixes, suffixes and magical properties. Gems and Runes can even be placed inside of other items
+as socketed items. Depending on the item rarity an item can have different type of
+properties and number of sockets, for example unique items having a set number of magical properties, or rare and crafted items having two rare
+names put together randomly that determines the magical properties they will obtain, for example <code>Corruption Grip Ring</code>.</p><p><img src=/images/corruption_grip.png alt="Corruption Grip Ring"></p><p>Each item also has an item level and this item level determines which magical properties are eligible, this means certain
+magical properties can only occur above certain item levels.</p><p>Instead of trying to link the thousands of lines of code that perform the complex task of parsing these items I will try and explain the differences between item types and give an overview of how the parsing works on the binary level, and then link to the full implementation of the item parser in the go library.</p><p>The item list reads just like every other section and start with a <code>2 byte</code> header but the item list
+also have an <code>uint16</code> (2 byte) after the header containing information about the number of items to read in the list.
+This is important because we don&rsquo;t know how long this section is until we have read it. Each item has a bit length of <code>n</code> depending on rarity, number of magical properties and item type. For example not all items have durability, defense or weapon damage so their bit length varies.</p><h3 id=simple-items>Simple items</h3><p>Simple items are always <code>111 bit</code> long, they contain the most basic data structure that all items have. For example if it&rsquo;s ethereal, how
+many number of sockets it has, the name of the item and its position in the inventory or slot it is equipped in. All items have this information so consider it the &ldquo;base&rdquo; of each item.</p><p>All items except for simple items have a list of magical properties assigned to them. This magical property list reads similar to the attributes section with a few exceptions. Since an item can be <code>n</code> bits long, it can stop in the middle of a byte, this means that the reader has to be aligned at the next byte boundary to read the next item. Below is a psuedo code example of how the layout of the item list looks.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#66d9ef>for</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>	read <span style=color:#ae81ff>111</span> bits <span style=color:#f92672>(</span>simple item structure<span style=color:#f92672>)</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> !item.SimpleItem <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>for</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>			<span style=color:#ae81ff>9</span> bit id
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>			<span style=color:#66d9ef>if</span> id <span style=color:#f92672>==</span> 0x1ff <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>				break
+</span></span><span style=display:flex><span>			<span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>			loop through n bit sections of magical properties
+</span></span><span style=display:flex><span>		<span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>	<span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> item.Location <span style=color:#f92672>==</span> socketed <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>		add the socketed item bonus to the magical list of the item
+</span></span><span style=display:flex><span>	<span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> item.NrOfItemsInSockets &gt; <span style=color:#ae81ff>0</span> <span style=color:#f92672>{</span>
+</span></span><span style=display:flex><span>		add number of socketed items to list count
+</span></span><span style=display:flex><span>	<span style=color:#f92672>}</span>
+</span></span><span style=display:flex><span>	
+</span></span><span style=display:flex><span>	byte align the reader at next byte boundry
+</span></span><span style=display:flex><span><span style=color:#f92672>}</span>
+</span></span></code></pre></div><p>The full magical list reader can be found <a href=https://github.com/nokka/d2s/blob/426ae713940b7474a5f7872f16dddb02ced8a241/d2s.go#L991-L1034>here</a>.</p><p>The tricky part about reading these magical properties is that they can be quite different, they are <code>n</code> bits long but these
+bits are divided into several sections depending on the property. Representing them in Go a slice of integers is used to store the number
+of bits to help with understanding how long each section will be.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>MagicalProperty</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>Bits</span> []<span style=color:#66d9ef>uint</span> <span style=color:#75715e>// slice of ints representing number of bits to read.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Bias</span> <span style=color:#66d9ef>uint64</span> <span style=color:#75715e>// bias is a value to substract from a given property if needed
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>Name</span> <span style=color:#66d9ef>string</span> <span style=color:#75715e>// name of the magical property
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>}
+</span></span></code></pre></div><p>A simple magical property like strength with ID <code>0</code> that only has one section of bits looks like the example below
+and in game it would look like <code>+30 to Strength</code>.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>magicalProperties</span> = <span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>uint64</span>]<span style=color:#a6e22e>MagicalProperty</span>{
+</span></span><span style=display:flex><span>	<span style=color:#ae81ff>0</span>:  {<span style=color:#a6e22e>Bits</span>: []<span style=color:#66d9ef>uint</span>{<span style=color:#ae81ff>8</span>}, <span style=color:#a6e22e>Bias</span>: <span style=color:#ae81ff>32</span>, <span style=color:#a6e22e>Name</span>: <span style=color:#e6db74>&#34;+{0} to Strength&#34;</span>},
+</span></span><span style=display:flex><span>	<span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><img src=/images/strength.png alt="Strength layout"></p><p>A more complicated magical property with ID <code>83</code> containing several sections of data is the +Skills property.
+It has two sections with <code>3</code> bits each, one for the class it gives the skills to, but also the number of skills given.
+The order is reversed which is quite confusing with the number of skill points given being the second index in the slice, but in game it would look
+like <code>+2 to Sorceress Skill Levels</code>.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>magicalProperties</span> = <span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>uint64</span>]<span style=color:#a6e22e>MagicalProperty</span>{
+</span></span><span style=display:flex><span>	<span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>	<span style=color:#ae81ff>83</span>: {<span style=color:#a6e22e>Bits</span>: []<span style=color:#66d9ef>uint</span>{<span style=color:#ae81ff>3</span>, <span style=color:#ae81ff>3</span>}, <span style=color:#a6e22e>Name</span>: <span style=color:#e6db74>&#34;+{1} to {0} Skill Levels&#34;</span>},
+</span></span><span style=display:flex><span>	<span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><img src=/images/plus_skills.png alt="Plus skills layout"></p><p>When a magical property is read, the ID is read first and then that ID is used to look up the property structure in the
+<code>magicalProperties</code> map. You can find the whole thing <a href=https://github.com/nokka/d2s/blob/master/item.go#L1219>here</a>.</p><h2 id=mercenary-and-iron-golem>Mercenary and Iron Golem</h2><p>After the character item list, there are 2 more optional item lists that follow the exact same layout.
+The first one is the Mercenary that can equip a weapon, helm and armor and the second one is the Iron
+Golem that only exists for Necromancers who are summoned through sacrificing a weapon. The Iron Golem
+inherits the magical properties of the weapon.</p><h2 id=conclusion>Conclusion</h2><p>Using Go to read input streams is incredibly effective with the simple <code>io.Reader</code> interface, and the
+bufio package provides the buffered reader that makes it perfect for reading input streams bit by bit.
+Being able to define structs with certain byte lengths in Go and simply read data into the structs through the input
+stream simplified this project a lot and makes the code readable.</p><p>Go always felt like an enabler when writing the code, the intentions of the code are made clear and concise by
+the explicit way Go code is defined. Everything you could possibly need can be found in the Go standard library
+and are abstracted behind simple interfaces. Not a single third party library was used writing the binary parser,
+it relies solely on the standard library.</p><p>I started this project in 2016 as a way to learn Go while simultaneously explore the game that I have loved
+for so many years. Today several people have contributed to the project on Github which I&rsquo;m incredibly grateful for.
+I&rsquo;m still writing most of my code in Go today in 2022 and I have Diablo II to thank for that.</p><p>This library powers a lot of the tools used at the Slashdiablo private server today, but the most important
+one is the Armory where you can view all characters online to see what your friends are up to.</p><h2 id=links>Links</h2><ul><li><a href=https://github.com/nokka/d2s>d2s go binary parser</a></li><li><a href=http://armory.slashdiablo.net/character/nokka#equipped>Slashdiablo armory</a></li></ul></div></main><footer><p class="copyright text-muted">All opinions expressed are my own and do not reflect those of my employer or anyone else.</p></footer></body></html>
