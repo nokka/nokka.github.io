@@ -2,7 +2,7 @@
 title: "Cloud SQL"
 date: "2021-11-14"
 tags: ["cloudsql"]
-draft: false
+draft: true
 ---
 
 ## CloudSQL

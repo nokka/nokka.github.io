@@ -1,7 +1,7 @@
 ---
 title: "Writing a Diablo II binary parser using Go"
 date: "2022-02-27"
-tags: ["diablo-ii"]
+tags: ["diablo-ii", "go"]
 draft: false
 ---
 
