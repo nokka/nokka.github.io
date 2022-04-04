@@ -53,6 +53,10 @@ code .hljs-deletion {
 
 /* @import url('https://fonts.googleapis.com/css2?family=Lato:wght@700&display=swap'); */
 
+.intro h1 {
+    font-size: 46px;
+}
+
 main p {
     font-size: 1.2em;
     font-weight: 300;

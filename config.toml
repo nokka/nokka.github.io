@@ -1,9 +1,9 @@
 baseURL = "https://nokka.github.io"
 languageCode = "en-us"
-title = "Title"
+title = "Stefan Konno"
 theme = "minimal"
 googleAnalytics = ""
-content = "derp"
+content = ""
 enableRobotsTXT = false
 
 [params]
