@@ -1,5 +1,5 @@
 ---
-title: "Homepage"
+title: "Tech ramblings"
 ---
 
 I am a software engineer based in Stockholm, Sweden and these are my ramblings about tech, software engineering,
