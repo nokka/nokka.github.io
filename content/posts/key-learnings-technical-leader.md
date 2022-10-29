@@ -18,8 +18,7 @@ I had worked in small teams where I had been exploring new programming languages
 who trusted me. I thought to myself, being a good tech lead can't possibly be any different from what I'm already doing?
 
 I accepted the role with this in mind feeling empowered but in hindsight I got almost everything wrong and I think it's a common mistake
-for engineers to make who move into a leadership position without any guidance. I was 29 years old at the time and this single decision
-set me off on a completely new direction in life.
+for engineers to make who move into a leadership position without any guidance.
 
 ---
 
@@ -51,8 +50,7 @@ launched our new product I felt nothing - absolutely nothing.
 --- 
 
 My self doubt and anxiety got me interested in psychology, leadership and spirituality. I started reading a lot of books
-hoping to find some answers on how to deal with my feelings. I started to realise that healthy technical leadership isn't about who writes the most code or about technical savvy. It's
-about humans, about gratitude and being an empathic listener who moves the team forward by helping the team reach clarity.
+hoping to find some answers on how to deal with my feelings. I started to realise that healthy technical leadership isn't about who writes the most code or about technical savvy. It's about humans, about gratitude and being an empathic listener who moves the team forward by helping the team reach clarity.
 
 I've summarized a few key principles that I got wrong from the start, that took me years to develop and that I would like to share
 to guide anyone who is trying to figure out how they might want to lead.
@@ -69,7 +67,7 @@ I was told by management to be more extroverted, to high five team members daily
 to do all kinds of things that was basically other peoples view of what a leader was. All the things I valued and thought was important
 got implicitly shoved aside as less important.
 
-This didn't sit right with me and in my reserach I found this book called [Quiet](https://www.amazon.com/Quiet-Power-Introverts-World-Talking/dp/0307352153) by Susan Cain
+This didn't sit right with me and in my research I found this book called [Quiet](https://www.amazon.com/Quiet-Power-Introverts-World-Talking/dp/0307352153) by Susan Cain
 that focuses on how society often missunderstands and undervalues traits by introverted people
 that can lead to them changing their personality in the workplace to fit in, which in turn leads to a huge waste of talent, energy and happiness.
 
@@ -149,7 +147,7 @@ don't think so much about the fact that you didn't have time to write any code.
 &nbsp;
 
 ### Reaching clarity
-Learning to communicate well can be a great tool to help your  team reach clarity. Being able to communicate technical problems to people outside of tech will help the rest of the organisation understand
+Learning to communicate well can be a great tool to help your team reach clarity. Being able to communicate technical problems to people outside of tech will help the rest of the organisation understand
 the difficulties and struggles the team might have. Being able to communicate to your team on why a certain business decision
 was made might help the team reach clarity and more gracefully accept change.
 
